@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Respuesta de Redes — CRM</title>
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4/dist/socket.io.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0d0f12;
+    --bg2: #151820;
+    --bg3: #1c2029;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #e8eaf0;
+    --muted: #7a8099;
+    --accent: #25d366;
+    --accent2: #1da851;
+    --ia: #5b8ef0;
+    --ia2: #3a6fd8;
+    --warn: #f0a525;
+    --danger: #e05252;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  .chat-controls { display: flex; gap: 8px; margin-right: 10px; }
+.btn-control {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-control:hover { border-color: var(--accent); color: var(--accent); }
+.btn-control.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+body {
+    font-family: 'Montserrat', sans-serif; /* Cambio a Montserrat */
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* TOPBAR */
+.topbar {
+    height: 60px; /* Un poco más alta para mayor aire */
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+  .logo-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-img {
+    height: 32px; /* Ajusta según el tamaño de tu logo */
+    width: auto;
+  }
+
+  .logo-text {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.5px;
+  }
+  .logo {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: -.3px;
+  }
+  .logo span { color: var(--text); font-weight: 300; }
+  .wa-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 8px;
+  }
+  .wa-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--danger);
+    transition: background .3s;
+  }
+  .wa-dot.ok { background: var(--accent); }
+  .stats-bar {
+    margin-left: auto;
+    display: flex;
+    gap: 24px;
+  }
+  .stat {
+    text-align: right;
+  }
+  .stat-val {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+  }
+  .stat-lbl {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: grid;
+    grid-template-columns: 260px minmax(0,1fr) 240px;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* SIDEBAR CONVERSACIONES */
+  .sidebar {
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-head {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sidebar-head h2 {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+  .conv-count {
+    font-size: 11px;
+    background: var(--bg3);
+    color: var(--muted);
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-family: 'DM Mono', monospace;
+  }
+  .conv-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+  }
+  .conv-list::-webkit-scrollbar { width: 3px; }
+  .conv-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  .conv-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: background .12s;
+    position: relative;
+  }
+  .conv-item:hover { background: var(--bg3); }
+  .conv-item.active {
+    background: var(--bg3);
+    border-left-color: var(--accent);
+  }
+  .conv-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 3px;
+  }
+  .conv-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .conv-time {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+  .conv-preview {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 190px;
+  }
+  .estado-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 4px;
+  }
+  .dot-nuevo { background: var(--ia); }
+  .dot-en_pago { background: var(--warn); }
+  .dot-cerrado { background: var(--accent); }
+
+  /* CHAT AREA */
+  .chat {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  .chat-header {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .chat-info { flex: 1; }
+  .chat-name { font-size: 14px; font-weight: 500; }
+  .chat-num { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .estado-pill {
+    font-size: 10px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-weight: 500;
+  }
+  .pill-nuevo { background: rgba(91,142,240,.15); color: var(--ia); }
+  .pill-en_pago { background: rgba(240,165,37,.15); color: var(--warn); }
+  .pill-cerrado { background: rgba(37,211,102,.15); color: var(--accent); }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .messages::-webkit-scrollbar { width: 3px; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  .msg-group { display: flex; flex-direction: column; gap: 2px; }
+  .msg-label {
+    font-size: 10px;
+    color: var(--muted);
+    padding: 0 4px;
+  }
+  .msg-label.right { text-align: right; }
+
+  .msg {
+    max-width: 68%;
+    padding: 9px 13px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg-client {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    align-self: flex-start;
+    border-radius: 4px 14px 14px 14px;
+  }
+  .msg-ia {
+    background: rgba(91,142,240,.18);
+    border: 1px solid rgba(91,142,240,.25);
+    color: #c0d0f8;
+    align-self: flex-end;
+    border-radius: 14px 4px 14px 14px;
+  }
+  .msg-agente {
+    background: rgba(37,211,102,.15);
+    border: 1px solid rgba(37,211,102,.25);
+    color: #90e8b0;
+    align-self: flex-end;
+    border-radius: 14px 4px 14px 14px;
+  }
+  .msg-time {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    align-self: flex-end;
+    padding-right: 2px;
+  }
+  .msg-time.left { align-self: flex-start; padding-left: 2px; }
+
+  .empty-chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--muted);
+  }
+  .empty-icon {
+    font-size: 32px;
+    opacity: .4;
+  }
+  .empty-chat p { font-size: 13px; }
+
+  /* INPUT ÁREA */
+  .input-area {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg2);
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    flex-shrink: 0;
+  }
+  .input-wrap { flex: 1; position: relative; }
+  textarea {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 9px 12px;
+    resize: none;
+    outline: none;
+    line-height: 1.5;
+    min-height: 38px;
+    max-height: 100px;
+    transition: border-color .15s;
+  }
+  textarea:focus { border-color: var(--border2); }
+  textarea::placeholder { color: var(--muted); }
+
+  .btn {
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: opacity .15s, transform .1s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn-send {
+    background: var(--accent);
+    color: #000;
+  }
+  .btn-send:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-ia {
+    background: var(--ia2);
+    color: #fff;
+  }
+
+  .quick-actions {
+    padding: 8px 16px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .qa-btn {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .qa-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* PANEL DERECHO */
+  .right-panel {
+    background: var(--bg2);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .rp-section {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+  }
+  .rp-title {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 10px;
+  }
+
+  /* Registrar venta */
+  .venta-form { display: flex; flex-direction: column; gap: 7px; }
+  select, input[type=number] {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    padding: 7px 10px;
+    outline: none;
+    width: 100%;
+  }
+  select option { background: var(--bg3); }
+  .btn-venta {
+    background: rgba(37,211,102,.15);
+    border: 1px solid rgba(37,211,102,.3);
+    color: var(--accent);
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    padding: 7px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 500;
+    transition: background .15s;
+  }
+  .btn-venta:hover { background: rgba(37,211,102,.25); }
+
+  /* Ventas recientes */
+  .ventas-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 16px 8px;
+  }
+  .ventas-list::-webkit-scrollbar { width: 3px; }
+  .ventas-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  .venta-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .venta-item:last-child { border-bottom: none; }
+  .venta-nombre { font-size: 12px; font-weight: 500; }
+  .venta-detalle {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2px;
+  }
+  .venta-monto { color: var(--accent); font-family: 'DM Mono', monospace; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    font-size: 13px;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all .3s;
+    z-index: 999;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.ok { border-color: rgba(37,211,102,.4); color: var(--accent); }
+  .toast.err { border-color: rgba(224,82,82,.4); color: var(--danger); }
+
+  /* Sin conversación seleccionada */
+  #no-selection {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo-container">
+    <img src="https://www.websrapidas.com/wp-content/uploads/2025/09/logo-webs-rapidas-v1.jpg" alt="Webs Rápidas" class="logo-img">
+    <div class="logo-text">Webs Rápidas <span>CRM</span></div>
+  </div>
+  
+  <div class="wa-status">
+    <div class="wa-dot" id="wa-dot"></div>
+    <span id="wa-label">WhatsApp desconectado</span>
+  </div>
+  <div class="stats-bar">
+    <div class="stat">
+      <div class="stat-val" id="s-convs">0</div>
+      <div class="stat-lbl">Conversaciones</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="s-ventas">0</div>
+      <div class="stat-lbl">Ventas</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="s-ingresos">S/ 0</div>
+      <div class="stat-lbl">Ingresos</div>
+    </div>
+  </div>
+  <button onclick="abrirConfig()" style="background:var(--bg3); border:1px solid var(--border); color:var(--text); padding:5px 10px; cursor:pointer; border-radius:5px;">⚙️ Ajustes IA</button>
+</div>
+
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-head">
+      <h2>Conversaciones</h2>
+      <span class="conv-count" id="conv-count">0</span>
+    </div>
+    <div class="conv-list" id="conv-list">
+      <div style="padding:20px 16px;color:var(--muted);font-size:12px">Sin conversaciones aún.</div>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat">
+    <div id="no-selection">
+      <div class="empty-icon">💬</div>
+      <p>Selecciona una conversación</p>
+    </div>
+    <div id="chat-container" style="display:none;flex-direction:column;height:100%">
+      <div class="chat-header">
+  <div class="avatar" id="ch-avatar">??</div>
+  <div class="chat-info">
+    <div class="chat-name" id="ch-name">—</div>
+    <div class="chat-num" id="ch-num">—</div>
+  </div>
+  
+  <div class="chat-controls">
+    <button class="btn-control" onclick="toggleIA()" id="btn-ia-toggle" title="Encender/Apagar IA">🤖</button>
+    <button class="btn-control danger" onclick="eliminarChat()" title="Eliminar chat">🗑️</button>
+  </div>
+  
+  <span class="estado-pill" id="ch-estado">nuevo</span>
+</div>
+
+      <div class="messages" id="messages"></div>
+
+      <div class="quick-actions">
+        <button class="qa-btn" onclick="quickSend('catalogo')">Catálogo</button>
+        <button class="qa-btn" onclick="quickSend('precio1')">Producto 1</button>
+        <button class="qa-btn" onclick="quickSend('precio2')">Producto 2</button>
+        <button class="qa-btn" onclick="quickSend('precio3')">Producto 3</button>
+        <button class="qa-btn" onclick="quickSend('pago')">Instrucciones pago</button>
+      </div>
+
+      <div class="input-area">
+        <div class="input-wrap">
+          <textarea id="msg-input" rows="1" placeholder="Escribe un mensaje..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        </div>
+        <button class="btn btn-ia" onclick="iaResponde()">IA</button>
+        <button class="btn btn-send" id="btn-send" onclick="enviarManual()">Enviar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL DERECHO -->
+  <div class="right-panel">
+    <div class="rp-section">
+      <div class="rp-title">Registrar venta</div>
+      <div class="venta-form">
+        <select id="v-producto">
+          <option value="">Selecciona producto</option>
+          <option value="Producto 1|300">Producto 1 — S/ 300</option>
+          <option value="Producto 2|400">Producto 2 — S/ 400</option>
+          <option value="Producto 3|500">Producto 3 — S/ 500</option>
+        </select>
+        <button class="btn-venta" onclick="registrarVenta()">Confirmar venta cerrada</button>
+      </div>
+    </div>
+
+    <div class="rp-section" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+      <div class="rp-title">Ventas recientes</div>
+      <div class="ventas-list" id="ventas-list">
+        <div style="color:var(--muted);font-size:12px">Sin ventas aún.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const socket = io();
+let convActual = null;
+let todasConvs = {};
+let todasVentas = [];
+
+// ─── SOCKET EVENTS ────────────────────────────────────────────────────────────
+socket.on('wa_status', s => {
+  const dot = document.getElementById('wa-dot');
+  const lbl = document.getElementById('wa-label');
+  if (s === 'conectado') {
+    dot.classList.add('ok');
+    lbl.textContent = 'WhatsApp conectado';
+  } else {
+    dot.classList.remove('ok');
+    lbl.textContent = 'WhatsApp desconectado';
+  }
+});
+
+socket.on('nuevo_mensaje', data => {
+  const { numero, nombre, texto, de, hora } = data;
+
+  if (!todasConvs[numero]) {
+    todasConvs[numero] = { nombre, mensajes: [], estado: 'nuevo', ultimaVez: Date.now() };
+  }
+  todasConvs[numero].mensajes.push({ de, texto, hora });
+  todasConvs[numero].ultimaVez = Date.now();
+
+  renderSidebar();
+
+  if (convActual === numero) {
+    appendMsg(de, texto, hora);
+  }
+});
+
+socket.on('nueva_venta', venta => {
+  todasVentas.unshift(venta);
+  renderVentas();
+  refreshStats();
+});
+
+// ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+function renderSidebar() {
+  const list = document.getElementById('conv-list');
+  const convs = Object.entries(todasConvs).sort((a,b) => b[1].ultimaVez - a[1].ultimaVez);
+  document.getElementById('conv-count').textContent = convs.length;
+
+  if (!convs.length) {
+    list.innerHTML = '<div style="padding:20px 16px;color:var(--muted);font-size:12px">Sin conversaciones aún.</div>';
+    return;
+  }
+
+  list.innerHTML = convs.map(([num, conv]) => {
+    const lastMsg = conv.mensajes[conv.mensajes.length - 1];
+    const preview = lastMsg ? lastMsg.texto.substring(0, 35) + (lastMsg.texto.length > 35 ? '…' : '') : '';
+    const hora = lastMsg?.hora || '';
+    const dotClass = 'dot-' + (conv.estado || 'nuevo');
+    return `<div class="conv-item${convActual===num?' active':''}" onclick="abrirConv('${num}')">
+      <div class="conv-top">
+        <span class="conv-name"><span class="estado-dot ${dotClass}"></span>${conv.nombre}</span>
+        <span class="conv-time">${hora}</span>
+      </div>
+      <div class="conv-preview">${preview}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── CHAT ─────────────────────────────────────────────────────────────────────
+function abrirConv(numero) {
+  convActual = numero;
+  const conv = todasConvs[numero];
+
+  document.getElementById('no-selection').style.display = 'none';
+  const cc = document.getElementById('chat-container');
+  cc.style.display = 'flex';
+
+  const initials = conv.nombre.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+  document.getElementById('ch-avatar').textContent = initials;
+  document.getElementById('ch-name').textContent = conv.nombre;
+  document.getElementById('ch-num').textContent = numero;
+
+  const estadoEl = document.getElementById('ch-estado');
+  estadoEl.textContent = conv.estado || 'nuevo';
+  estadoEl.className = 'estado-pill pill-' + (conv.estado || 'nuevo');
+
+  const msgList = document.getElementById('messages');
+  msgList.innerHTML = '';
+  conv.mensajes.forEach(m => appendMsg(m.de, m.texto, m.hora, false));
+  msgList.scrollTop = msgList.scrollHeight;
+
+  renderSidebar();
+}
+
+function appendMsg(de, texto, hora, scroll=true) {
+  const list = document.getElementById('messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-group';
+
+  const label = document.createElement('div');
+  label.className = 'msg-label' + (de !== 'cliente' ? ' right' : '');
+  label.textContent = de === 'cliente' ? (todasConvs[convActual]?.nombre || 'Cliente') : de === 'ia' ? 'IA Asistente' : 'Agente';
+
+  const msg = document.createElement('div');
+  msg.className = 'msg msg-' + (de === 'cliente' ? 'client' : de === 'ia' ? 'ia' : 'agente');
+  msg.textContent = texto;
+
+  const time = document.createElement('div');
+  time.className = 'msg-time' + (de === 'cliente' ? ' left' : '');
+  time.textContent = hora || '';
+
+  wrap.appendChild(label);
+  wrap.appendChild(msg);
+  wrap.appendChild(time);
+  list.appendChild(wrap);
+  if (scroll) list.scrollTop = list.scrollHeight;
+}
+
+// ─── ENVIAR MANUAL ────────────────────────────────────────────────────────────
+async function enviarManual() {
+  if (!convActual) return;
+  const inp = document.getElementById('msg-input');
+  const texto = inp.value.trim();
+  if (!texto) return;
+
+  inp.value = '';
+  autoResize(inp);
+
+  try {
+    const r = await fetch('/api/enviar', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ numero: convActual, texto })
+    });
+    const d = await r.json();
+    if (!d.ok) showToast('Error al enviar: ' + d.error, 'err');
+  } catch(e) {
+    showToast('Error de red', 'err');
+  }
+}
+
+// ─── IA RESPONDE (llama al backend que usa Anthropic) ─────────────────────────
+async function iaResponde() {
+  if (!convActual) return;
+  showToast('IA generando respuesta...', 'ok');
+  try {
+    const r = await fetch('/api/ia-responde', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ numero: convActual })
+    });
+    const d = await r.json();
+    if (!d.ok) showToast('Error IA: ' + d.error, 'err');
+  } catch(e) {
+    showToast('Error de red', 'err');
+  }
+}
+
+// ─── QUICK ACTIONS ────────────────────────────────────────────────────────────
+const QUICK = {
+  catalogo: 'Hola! Nuestro catálogo de servicios:\n\n• Producto 1 — S/ 300\n• Producto 2 — S/ 400\n• Producto 3 — S/ 500\n\n¿Cuál te interesa? 😊',
+  precio1: 'El Producto 1 tiene un precio de S/ 300. ¿Te gustaría proceder con la compra?',
+  precio2: 'El Producto 2 tiene un precio de S/ 400. ¿Te gustaría proceder con la compra?',
+  precio3: 'El Producto 3 tiene un precio de S/ 500. ¿Te gustaría proceder con la compra?',
+  pago: 'Para completar tu compra, realiza el pago por Yape al número 987-654-321 (Respuesta de Redes) y envíame el comprobante. ¡En cuanto lo reciba coordinamos la entrega! 🙌',
+};
+
+function quickSend(key) {
+  if (!convActual) return;
+  document.getElementById('msg-input').value = QUICK[key];
+  autoResize(document.getElementById('msg-input'));
+}
+
+// ─── REGISTRAR VENTA ──────────────────────────────────────────────────────────
+async function registrarVenta() {
+  if (!convActual) { showToast('Selecciona una conversación', 'err'); return; }
+  const sel = document.getElementById('v-producto').value;
+  if (!sel) { showToast('Selecciona un producto', 'err'); return; }
+
+  const [producto, monto] = sel.split('|');
+  try {
+    const r = await fetch('/api/venta', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ numero: convActual, producto, monto })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('Venta registrada ✓', 'ok');
+      if (todasConvs[convActual]) todasConvs[convActual].estado = 'cerrado';
+      renderSidebar();
+      refreshStats();
+    }
+  } catch(e) {
+    showToast('Error al registrar', 'err');
+  }
+}
+
+// ─── VENTAS LIST ──────────────────────────────────────────────────────────────
+function renderVentas() {
+  const list = document.getElementById('ventas-list');
+  if (!todasVentas.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:12px">Sin ventas aún.</div>';
+    return;
+  }
+  list.innerHTML = todasVentas.slice(0, 20).map(v => {
+    const hora = new Date(v.fecha).toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'});
+    return `<div class="venta-item">
+      <div class="venta-nombre">${v.nombre}</div>
+      <div class="venta-detalle">
+        <span>${v.producto}</span>
+        <span class="venta-monto">S/ ${v.monto}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── STATS ────────────────────────────────────────────────────────────────────
+async function refreshStats() {
+  try {
+    const r = await fetch('/api/stats');
+    const s = await r.json();
+    document.getElementById('s-convs').textContent = s.totalConvs;
+    document.getElementById('s-ventas').textContent = s.ventasCerradas;
+    document.getElementById('s-ingresos').textContent = 'S/ ' + s.ingresosTotal;
+  } catch(e) {}
+}
+
+// ─── LOAD INICIAL ─────────────────────────────────────────────────────────────
+async function loadInicial() {
+  try {
+    const r = await fetch('/api/conversaciones');
+    const convs = await r.json();
+    convs.forEach(c => {
+      todasConvs[c.numero] = {
+        nombre: c.nombre,
+        mensajes: [],
+        estado: c.estado,
+        ultimaVez: c.ultimaVez,
+      };
+    });
+    renderSidebar();
+    refreshStats();
+  } catch(e) {}
+}
+
+loadInicial();
+setInterval(refreshStats, 15000);
+
+// ─── CONTROLES DE CHAT Y IA ──────────────────────────────────────────────────
+
+let iaActiva = true; // Estado global de la IA
+
+async function toggleIA() {
+  iaActiva = !iaActiva;
+  const btn = document.getElementById('btn-ia-toggle');
+  
+  // Cambiamos el aspecto para que sea amigable [cite: 2026-02-10]
+  btn.style.opacity = iaActiva ? "1" : "0.5";
+  btn.textContent = iaActiva ? "🤖" : "💤";
+  
+  showToast(iaActiva ? 'IA activada' : 'IA en pausa', iaActiva ? 'ok' : 'err');
+
+  // Aquí avisamos al servidor para que deje de responder automáticamente
+  try {
+    await fetch('/api/configurar-ia', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ numero: convActual, activo: iaActiva })
+    });
+  } catch(e) { console.error("Error al cambiar estado IA", e); }
+}
+
+async function eliminarChat() {
+  if (!convActual) return;
+  
+  // Confirmación simple para evitar errores
+  const confirmar = confirm(`¿Estás seguro de eliminar el chat con ${todasConvs[convActual].nombre}?`);
+  if (!confirmar) return;
+
+  try {
+    const r = await fetch(`/api/eliminar-chat/${convActual}`, { method: 'DELETE' });
+    const d = await r.json();
+    
+    if (d.ok) {
+      delete todasConvs[convActual];
+      convActual = null;
+      
+      // Reset de la vista [cite: 2026-02-12]
+      document.getElementById('chat-container').style.display = 'none';
+      document.getElementById('no-selection').style.display = 'flex';
+      
+      renderSidebar();
+      showToast('Chat eliminado correctamente', 'ok');
+    }
+  } catch(e) {
+    showToast('Error de conexión al eliminar', 'err');
+  }
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarManual(); }
+}
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+function showToast(msg, type='ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(() => t.className = 'toast', 2500);
+}
+</script>
+________________________________________________
+
+<div id="modal-config" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; justify-content:center; align-items:center;">
+  <div style="background:var(--bg2); padding:20px; border-radius:10px; width:400px; color:var(--text);">
+    <h3>Configuración de Webs Rápidas IA</h3>
+    <textarea id="prompt-edit" style="width:100%; height:150px; background:var(--bg3); color:white;"></textarea>
+    <div style="margin-top:10px; display:flex; gap:10px;">
+      <button onclick="guardarPrompt()">Guardar</button>
+      <button onclick="cerrarConfig()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function abrirConfig() {
+    fetch('/api/get-prompt').then(r=>r.json()).then(d=>{
+      document.getElementById('prompt-edit').value = d.prompt;
+      document.getElementById('modal-config').style.display = 'flex';
+    });
+  }
+  function cerrarConfig() { document.getElementById('modal-config').style.display = 'none'; }
+  async function guardarPrompt() {
+    const val = document.getElementById('prompt-edit').value;
+    await fetch('/api/set-prompt', { method: 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:val})});
+    cerrarConfig();
+    alert('¡Prompt actualizado en Webs Rápidas CRM!');
+  }
+</script>
+__________________________________________________________
+</body>
+</html>
