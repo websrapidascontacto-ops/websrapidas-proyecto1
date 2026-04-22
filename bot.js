@@ -98,7 +98,7 @@ async function generarRespuestaIA(numero, textoCliente) {
 const wClient = new Client({
   authStrategy: new LocalAuth({ dataPath: '/data/.wwebjs_auth' }),
   puppeteer: {
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+    executablePath: '/usr/bin/chromium',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   },
 });
