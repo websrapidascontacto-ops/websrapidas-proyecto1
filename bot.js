@@ -12,17 +12,17 @@ const fs = require('fs');
 // Función que lee el prompt actualizado sin reiniciar el servidor
 function obtenerPrompt() {
   try {
-    const data = fs.readFileSync('config.json', 'utf8');
+    const data = fs.readFileSync('/data/config.json', 'utf8');
     return JSON.parse(data).systemPrompt;
   } catch (e) {
-    return "Eres el asistente virtual de Webs Rápidas..."; // Prompt por defecto
+    return "Eres el asistente virtual de Webs Rápidas...";
   }
 }
 
 
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
-const OPENROUTER_API_KEY = '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'; // Reemplaza con tu key de openrouter.ai
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const PORT = 3000;
 
 const SYSTEM_PROMPT = `Eres el asistente virtual de ventas de "Respuesta de Redes", una empresa de servicios.
@@ -96,8 +96,11 @@ async function generarRespuestaIA(numero, textoCliente) {
 
 // ─── WHATSAPP CLIENT ──────────────────────────────────────────────────────────
 const wClient = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: { args: ['--no-sandbox', '--disable-setuid-sandbox'] },
+  authStrategy: new LocalAuth({ dataPath: '/data/.wwebjs_auth' }),
+  puppeteer: {
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  },
 });
 
 wClient.on('qr', (qr) => {
@@ -314,7 +317,7 @@ app.post('/api/configurar-ia', (req, res) => {
 
 app.post('/api/set-prompt', (req, res) => {
   const { prompt } = req.body;
-  fs.writeFileSync('config.json', JSON.stringify({ systemPrompt: prompt }, null, 2));
+  fs.writeFileSync('/data/config.json', JSON.stringify({ systemPrompt: prompt }, null, 2));
   res.json({ ok: true });
 });
 
